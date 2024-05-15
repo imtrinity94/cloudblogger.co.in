@@ -1,0 +1,24 @@
+# Default Resource Elements
+Resources/Library/*
+
+# Library Workflows
+Workflows/Library
+
+# Environment Specific variables
+Configurations/Vault/API Keys
+
+# Negating pattern to explicitly include tenant specific information
+!Configurations/Tenants/*
+
+# Multi-Node Workflows
+Workflows/VCO@*
+
+# Packages
+**/Packages/
+
+# Test actions
+Actions/org/mayank/test
+
+# Environments 
+
+# Polyglot actions
