@@ -1,5 +1,7 @@
 # GraphQL for VCF Operations Orchestrator
 
+![Calling GraphQL APIs from VCF Operations Orchestrator](cloudblogger-banner-13483-graphql-apis.png)
+
 Plain ES5.1 actions that let Orchestrator (vRO) talk to any GraphQL API. No plugin needed: the actions use the built-in HTTP-REST scripting objects.
 
 Companion to the cloudblogger.co.in post *Calling GraphQL APIs from VCF Operations Orchestrator*.
