@@ -31,10 +31,12 @@ inputs:
   bootDiskGb:
     type: integer
     title: Boot disk size (GB)
-    description: Leave 0 to keep the image size. Can only be larger than the image disk.
-    minimum: 0
+    # EDIT ME: set minimum and default to the disk size of YOUR image's VM template (40 GB = Ubuntu 24.04 lab template).
+    # A value below the image disk fails during allocation ("Requested boot disk capacity ... is less than image boot disk capacity").
+    description: Minimum is the image disk size (40 GB for the Ubuntu 24.04 template). Change minimum and default to match your own image.
+    minimum: 40
     maximum: 2000
-    default: 0
+    default: 40
   dataDisks:
     type: array
     title: Data disks
