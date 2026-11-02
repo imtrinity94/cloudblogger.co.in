@@ -345,13 +345,13 @@ schema:
       isMultiple: false
   bootDiskGb:
     label: Boot disk size (GB)
-    signpost: Leave 0 to keep the image size. Can only be larger than the image disk.
+    signpost: Minimum 40 GB, the disk size of the Ubuntu 24.04 template behind the 'Official Ubuntu' image mapping. A smaller value fails during allocation. If you use a different image, check its disk size in vCenter and set this minimum (and the default) to match.
     type:
       dataType: integer
       isMultiple: false
-    default: 0
+    default: 40
     constraints:
-      min-value: 0
+      min-value: 40
       max-value: 2000
   dataDisks:
     label: Data disks

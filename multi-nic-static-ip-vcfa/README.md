@@ -60,7 +60,7 @@ VCF Automation 9.1 (VM Apps organization) with its built-in VCF Operations Orche
 
 - A network resource only accepts `count` 0 or 1, hence one resource per NIC.
 - `allocatePerInstance: true` on the disk resource is what gives each data disk its own size.
-- The boot disk can only be larger than the image disk.
+- The boot disk can never be smaller than the image's own disk; any smaller value (not just 0) fails during allocation with `Requested boot disk capacity ... is less than image boot disk capacity`. The form sets a minimum and default of 40 GB, the disk size of the Ubuntu 24.04 lab template. Check your image's template disk size in vCenter and change `min-value` and `default` of `bootDiskGb` in `custom-form.yaml` to match.
 - Only the first static NIC gets the default gateway.
 - Don't use `"` or `\` in the VM password field.
 - Don't combine `customizationSpec` with `cloudConfig` in the template.
