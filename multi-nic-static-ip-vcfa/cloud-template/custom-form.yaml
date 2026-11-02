@@ -1,0 +1,504 @@
+layout:
+  pages:
+  - id: page_general
+    title: General
+    sections:
+    - id: section_project
+      fields:
+      - id: project
+        display: combobox
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_environment
+      fields:
+      - id: environment
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_deploymentName
+      fields:
+      - id: deploymentName
+        display: textField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_vmName
+      fields:
+      - id: vmName
+        display: textField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_image
+      fields:
+      - id: image
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_size
+      fields:
+      - id: size
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_ntpServers
+      fields:
+      - id: ntpServers
+        display: textField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_vmUsername
+      fields:
+      - id: vmUsername
+        display: textField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_vmPassword
+      fields:
+      - id: vmPassword
+        display: passwordField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    state: {}
+  - id: page_storage
+    title: Storage
+    sections:
+    - id: section_bootDiskGb
+      fields:
+      - id: bootDiskGb
+        display: integerField
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_dataDisks
+      fields:
+      - id: dataDisks
+        display: datagrid
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    state: {}
+  - id: page_network
+    title: Network
+    sections:
+    - id: section_nic1Network
+      fields:
+      - id: nic1Network
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic1Dhcp
+      fields:
+      - id: nic1Dhcp
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic1IpAddress
+      fields:
+      - id: nic1IpAddress
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic1Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic1Netmask
+      fields:
+      - id: nic1Netmask
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic1Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic2Network
+      fields:
+      - id: nic2Network
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic2Dhcp
+      fields:
+      - id: nic2Dhcp
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic2IpAddress
+      fields:
+      - id: nic2IpAddress
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic2Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic2Netmask
+      fields:
+      - id: nic2Netmask
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic2Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic3Network
+      fields:
+      - id: nic3Network
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic3Dhcp
+      fields:
+      - id: nic3Dhcp
+        display: dropDown
+        state:
+          visible: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic3IpAddress
+      fields:
+      - id: nic3IpAddress
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic3Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_nic3Netmask
+      fields:
+      - id: nic3Netmask
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic3Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_ciGateway
+      fields:
+      - id: ciGateway
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic1Dhcp: 'No'
+            value: true
+          - equals:
+              nic2Dhcp: 'No'
+            value: true
+          - equals:
+              nic3Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_ciDNS
+      fields:
+      - id: ciDNS
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic1Dhcp: 'No'
+            value: true
+          - equals:
+              nic2Dhcp: 'No'
+            value: true
+          - equals:
+              nic3Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    - id: section_ciDomain
+      fields:
+      - id: ciDomain
+        display: textField
+        state:
+          visible:
+          - equals:
+              nic1Dhcp: 'No'
+            value: true
+          - equals:
+              nic2Dhcp: 'No'
+            value: true
+          - equals:
+              nic3Dhcp: 'No'
+            value: true
+          read-only: false
+        signpostPosition: right-middle
+    state: {}
+schema:
+  project:
+    label: Project
+    type:
+      dataType: string
+      isMultiple: false
+    valueList:
+      id: projects
+      type: scriptAction
+    constraints:
+      required: true
+  environment:
+    label: Environment
+    type:
+      dataType: string
+      isMultiple: false
+    default: Lab
+    valueList:
+    - Lab
+    - Production
+    - Staging
+    constraints: {}
+  deploymentName:
+    label: Deployment Name
+    type:
+      dataType: string
+      isMultiple: false
+    default:
+      bind:
+        values:
+        - '`lab-`'
+        - vmName
+        operator: concatenate
+    constraints:
+      required: true
+  vmName:
+    label: VM name
+    description: Becomes the vCenter VM name and guest hostname. Lowercase letters, digits and hyphens; up to 40 chars.
+    signpost: Becomes the vCenter VM name and guest hostname. Lowercase letters, digits and hyphens; up to 40 chars.
+    type:
+      dataType: string
+      isMultiple: false
+    default: ''
+    constraints:
+      max-value: 40
+  image:
+    label: Operating system
+    type:
+      dataType: string
+      isMultiple: false
+    default: Official Ubuntu
+    valueList:
+    - value: Official Ubuntu
+      label: Official Ubuntu
+    - value: RockyLinux
+      label: RockyLinux
+  size:
+    label: VM size
+    type:
+      dataType: string
+      isMultiple: false
+    default: Small
+    valueList:
+    - value: Small
+      label: Small (2 vCPU / 4 GB RAM)
+    - value: Medium
+      label: Medium (4 vCPU / 8 GB RAM)
+    - value: Large
+      label: Large (8 vCPU / 16 GB RAM)
+    - value: X-Large
+      label: X-Large (16 vCPU / 32 GB RAM)
+  ntpServers:
+    label: NTP servers
+    description: Comma separated IPs or FQDNs. Leave blank to keep the image default.
+    signpost: Comma separated IPs or FQDNs. Leave blank to keep the image default.
+    type:
+      dataType: string
+      isMultiple: false
+  bootDiskGb:
+    label: Boot disk size (GB)
+    signpost: Leave 0 to keep the image size. Can only be larger than the image disk.
+    type:
+      dataType: integer
+      isMultiple: false
+    default: 0
+    constraints:
+      min-value: 0
+      max-value: 2000
+  dataDisks:
+    label: Data disks
+    signpost: Add one row per data disk. Leave empty for no data disks.
+    type:
+      dataType: complex
+      isMultiple: true
+      fields:
+      - label: Size (GB)
+        id: sizeGb
+        type:
+          dataType: integer
+          isMultiple: false
+        constraints:
+          min-value: 1
+          max-value: 3000
+    default: []
+  nic1Network:
+    label: NIC 1 network
+    type:
+      dataType: string
+      isMultiple: false
+    valueList:
+      id: in.co.cloudblogger.multinic/getNetworksByEnvironment
+      type: scriptAction
+      parameters:
+      - $type:
+          dataType: string
+          isMultiple: false
+        environment: environment
+  nic1Dhcp:
+    label: NIC 1 DHCP enabled?
+    type:
+      dataType: string
+      isMultiple: false
+    default: 'Yes'
+    valueList:
+    - value: 'Yes'
+      label: 'Yes'
+    - value: 'No'
+      label: 'No'
+  nic1IpAddress:
+    label: NIC 1 IP address
+    type:
+      dataType: string
+      isMultiple: false
+  nic1Netmask:
+    label: NIC 1 netmask
+    type:
+      dataType: string
+      isMultiple: false
+  nic2Network:
+    label: NIC 2 network
+    type:
+      dataType: string
+      isMultiple: false
+    valueList:
+      id: in.co.cloudblogger.multinic/getNetworksByEnvironment
+      type: scriptAction
+      parameters:
+      - $type:
+          dataType: string
+          isMultiple: false
+        environment: environment
+  nic2Dhcp:
+    label: NIC 2 DHCP enabled?
+    type:
+      dataType: string
+      isMultiple: false
+    default: 'Yes'
+    valueList:
+    - value: 'Yes'
+      label: 'Yes'
+    - value: 'No'
+      label: 'No'
+  nic2IpAddress:
+    label: NIC 2 IP address
+    type:
+      dataType: string
+      isMultiple: false
+  nic2Netmask:
+    label: NIC 2 netmask
+    type:
+      dataType: string
+      isMultiple: false
+  nic3Network:
+    label: NIC 3 network
+    type:
+      dataType: string
+      isMultiple: false
+    valueList:
+      id: in.co.cloudblogger.multinic/getNetworksByEnvironment
+      type: scriptAction
+      parameters:
+      - $type:
+          dataType: string
+          isMultiple: false
+        environment: environment
+  nic3Dhcp:
+    label: NIC 3 DHCP enabled?
+    type:
+      dataType: string
+      isMultiple: false
+    default: 'Yes'
+    valueList:
+    - value: 'Yes'
+      label: 'Yes'
+    - value: 'No'
+      label: 'No'
+  nic3IpAddress:
+    label: NIC 3 IP address
+    type:
+      dataType: string
+      isMultiple: false
+  nic3Netmask:
+    label: NIC 3 netmask
+    type:
+      dataType: string
+      isMultiple: false
+  ciGateway:
+    label: Default gateway
+    signpost: Applied to the first static NIC only.
+    type:
+      dataType: string
+      isMultiple: false
+  ciDNS:
+    label: DNS servers
+    signpost: Comma separated.
+    type:
+      dataType: string
+      isMultiple: false
+  ciDomain:
+    label: Domain
+    type:
+      dataType: string
+      isMultiple: false
+  vmUsername:
+    label: VM username
+    signpost: Optional extra login created in the guest with sudo rights. Leave blank to skip.
+    type:
+      dataType: string
+      isMultiple: false
+  vmPassword:
+    label: VM password
+    signpost: Password for the VM username above.
+    type:
+      dataType: secureString
+      isMultiple: false
+options:
+  externalValidations: []

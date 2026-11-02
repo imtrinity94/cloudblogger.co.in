@@ -1,0 +1,279 @@
+formatVersion: 1
+inputs:
+  vmName:
+    type: string
+    title: VM name
+    description: Becomes the vCenter VM name and guest hostname. Lowercase letters, digits and hyphens; up to 40 chars. Leave blank to use the project naming template.
+    maxLength: 40
+    default: ''
+  image:
+    type: string
+    title: Operating system
+    oneOf:
+      - title: Official Ubuntu
+        const: Official Ubuntu
+      - title: RockyLinux
+        const: RockyLinux
+    default: Official Ubuntu
+  size:
+    type: string
+    title: VM size
+    oneOf:
+      - title: Small (2 vCPU / 4 GB RAM)
+        const: Small
+      - title: Medium (4 vCPU / 8 GB RAM)
+        const: Medium
+      - title: Large (8 vCPU / 16 GB RAM)
+        const: Large
+      - title: X-Large (16 vCPU / 32 GB RAM)
+        const: X-Large
+    default: Small
+  bootDiskGb:
+    type: integer
+    title: Boot disk size (GB)
+    description: Leave 0 to keep the image size. Can only be larger than the image disk.
+    minimum: 0
+    maximum: 2000
+    default: 0
+  dataDisks:
+    type: array
+    title: Data disks
+    description: Add one row per data disk. Leave empty for no data disks.
+    default: []
+    items:
+      type: object
+      properties:
+        sizeGb:
+          type: integer
+          title: Size (GB)
+          minimum: 1
+          maximum: 3000
+  nic1Network:
+    type: string
+    title: NIC 1 network
+    default: ''
+  nic1Dhcp:
+    type: string
+    title: NIC 1 DHCP enabled?
+    default: 'Yes'
+    enum:
+      - 'Yes'
+      - 'No'
+  nic1IpAddress:
+    type: string
+    title: NIC 1 IP address
+    default: ''
+  nic1Netmask:
+    type: string
+    title: NIC 1 netmask
+    default: ''
+  nic2Network:
+    type: string
+    title: NIC 2 network
+    default: ''
+  nic2Dhcp:
+    type: string
+    title: NIC 2 DHCP enabled?
+    default: 'Yes'
+    enum:
+      - 'Yes'
+      - 'No'
+  nic2IpAddress:
+    type: string
+    title: NIC 2 IP address
+    default: ''
+  nic2Netmask:
+    type: string
+    title: NIC 2 netmask
+    default: ''
+  nic3Network:
+    type: string
+    title: NIC 3 network
+    default: ''
+  nic3Dhcp:
+    type: string
+    title: NIC 3 DHCP enabled?
+    default: 'Yes'
+    enum:
+      - 'Yes'
+      - 'No'
+  nic3IpAddress:
+    type: string
+    title: NIC 3 IP address
+    default: ''
+  nic3Netmask:
+    type: string
+    title: NIC 3 netmask
+    default: ''
+  ciGateway:
+    type: string
+    title: Default gateway
+    description: Applied to the first static NIC only.
+    default: ''
+  ciDNS:
+    type: string
+    title: DNS servers
+    description: Comma separated.
+    default: ''
+  ciDomain:
+    type: string
+    title: Domain
+    default: ''
+  ntpServers:
+    type: string
+    title: NTP servers
+    description: Comma separated IPs or FQDNs. Leave blank to keep the image default.
+    default: ''
+  vmUsername:
+    type: string
+    title: VM username
+    description: Optional extra login created in the guest (sudo). Leave blank to skip.
+    default: ''
+  vmPassword:
+    type: string
+    title: VM password
+    encrypted: true
+    default: ''
+  environment:
+    type: string
+    title: Environment
+    default: Lab
+    enum:
+      - Lab
+      - Production
+      - Staging
+resources:
+  data-disk:
+    type: Cloud.vSphere.Disk
+    metadata:
+      layoutPosition:
+        - 0
+        - 0
+    # allocatePerInstance: evaluate count.index separately for every disk, so each disk gets its own row's size
+    allocatePerInstance: true
+    properties:
+      count: '${length(input.dataDisks)}'
+      capacityGb: '${input.dataDisks[count.index].sizeGb}'
+      name: '${"data-disk-" + (count.index + 1)}'
+      provisioningType: thin
+  vm:
+    type: Cloud.vSphere.Machine
+    metadata:
+      layoutPosition:
+        - 0
+        - 1
+    properties:
+      name: '${input.vmName != "" ? input.vmName : null}'
+      image: ${input.image}
+      flavor: ${input.size}
+      storage:
+        bootDiskCapacityInGB: '${input.bootDiskGb > 0 ? input.bootDiskGb : null}'
+      attachedDisks: ${map_to_object(resource.data-disk[*].id, "source")}
+      # NIC1 -> NIC3 order; a skipped NIC (count 0) adds nothing to the list
+      networks: '${map_to_object(resource.nic1[*].id + resource.nic2[*].id + resource.nic3[*].id, "network")}'
+      # Custom properties read by the Network Configure EBS (CloudBlogger - EBS - NetConf Pre - Apply Static IP)
+      cpNic1Network: ${input.nic1Network}
+      cpNic1Dhcp: ${input.nic1Dhcp}
+      cpNic1IpAddress: ${input.nic1IpAddress}
+      cpNic1Netmask: ${input.nic1Netmask}
+      cpNic2Network: ${input.nic2Network}
+      cpNic2Dhcp: ${input.nic2Dhcp}
+      cpNic2IpAddress: ${input.nic2IpAddress}
+      cpNic2Netmask: ${input.nic2Netmask}
+      cpNic3Network: ${input.nic3Network}
+      cpNic3Dhcp: ${input.nic3Dhcp}
+      cpNic3IpAddress: ${input.nic3IpAddress}
+      cpNic3Netmask: ${input.nic3Netmask}
+      cpGateway: ${input.ciGateway}
+      cpDNS: ${input.ciDNS}
+      cpDomain: ${input.ciDomain}
+      # Used by the subscription condition: 'Yes' when at least one selected NIC is static
+      cpAnyStaticNic: '${(input.nic1Network != "" && input.nic1Network != "No networks available for this environment yet" && input.nic1Dhcp == "No") || (input.nic2Network != "" && input.nic2Network != "No networks available for this environment yet" && input.nic2Dhcp == "No") || (input.nic3Network != "" && input.nic3Network != "No networks available for this environment yet" && input.nic3Dhcp == "No") ? "Yes" : "No"}'
+      cpNtpServers: ${input.ntpServers}
+      # Guest settings through cloud-init: optional login user and NTP servers.
+      cloudConfig: |
+        #cloud-config
+        ssh_pwauth: true
+        write_files:
+          - path: /etc/ssh/sshd_config.d/01-password-auth.conf
+            permissions: '0644'
+            content: |
+              PasswordAuthentication yes
+              KbdInteractiveAuthentication yes
+          - path: /usr/local/sbin/add-login-user.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Usage: add-login-user.sh "<username>" "<password>"  - does nothing when username is blank
+              U="$1"; P="$2"
+              if [ -z "$U" ]; then echo "add-login-user: no username given, skipped"; exit 0; fi
+              id "$U" >/dev/null 2>&1 || useradd -m -s /bin/bash "$U"
+              usermod -aG sudo "$U" 2>/dev/null || usermod -aG wheel "$U"
+              if [ -n "$P" ]; then echo "$U:$P" | chpasswd; passwd -u "$U" >/dev/null 2>&1; fi
+              echo "add-login-user: user $U ready"
+          - path: /usr/local/sbin/set-ntp.sh
+            permissions: '0755'
+            content: |
+              #!/bin/bash
+              # Usage: set-ntp.sh "ntp1,ntp2"
+              NTP_LIST=$(echo "$1" | tr ',;' '  ' | xargs)
+              if [ -z "$NTP_LIST" ]; then
+                echo "set-ntp: no NTP servers given, leaving image default"
+                exit 0
+              fi
+              CONF=""
+              [ -f /etc/chrony.conf ] && CONF=/etc/chrony.conf
+              [ -f /etc/chrony/chrony.conf ] && CONF=/etc/chrony/chrony.conf
+              if [ -n "$CONF" ]; then
+                sed -i -E 's/^(pool|server) /#&/' "$CONF"
+                for S in $NTP_LIST; do echo "server $S iburst" >> "$CONF"; done
+                systemctl enable chronyd 2>/dev/null || systemctl enable chrony
+                systemctl restart chronyd 2>/dev/null || systemctl restart chrony
+              else
+                mkdir -p /etc/systemd/timesyncd.conf.d
+                printf "[Time]\nNTP=%s\n" "$NTP_LIST" > /etc/systemd/timesyncd.conf.d/custom-ntp.conf
+                timedatectl set-ntp true
+                systemctl restart systemd-timesyncd
+              fi
+              echo "set-ntp: configured $NTP_LIST"
+        runcmd:
+          - [ sh, -c, "systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true" ]
+          - [ /usr/local/sbin/add-login-user.sh, "${input.vmUsername}", "${input.vmPassword}" ]
+          - [ /usr/local/sbin/set-ntp.sh, "${input.ntpServers}" ]
+          - [ sh, -c, "echo \"cloud-init done $(date)\" > /var/log/cloudinit-done.log" ]
+  nic1:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 2
+        - 0
+    properties:
+      networkType: existing
+      # NIC 1: count 0 when no network is picked (VCFA allows count 0 or 1 on networks)
+      count: '${input.nic1Network == "" || input.nic1Network == "No networks available for this environment yet" ? 0 : 1}'
+      constraints:
+        - tag: '${"net:" + to_lower(input.nic1Network)}'
+  nic2:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 2
+        - 1
+    properties:
+      networkType: existing
+      # NIC 2: count 0 when no network is picked (VCFA allows count 0 or 1 on networks)
+      count: '${input.nic2Network == "" || input.nic2Network == "No networks available for this environment yet" ? 0 : 1}'
+      constraints:
+        - tag: '${"net:" + to_lower(input.nic2Network)}'
+  nic3:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 2
+        - 2
+    properties:
+      networkType: existing
+      # NIC 3: count 0 when no network is picked (VCFA allows count 0 or 1 on networks)
+      count: '${input.nic3Network == "" || input.nic3Network == "No networks available for this environment yet" ? 0 : 1}'
+      constraints:
+        - tag: '${"net:" + to_lower(input.nic3Network)}'
