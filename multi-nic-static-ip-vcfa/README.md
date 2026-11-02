@@ -17,7 +17,7 @@ Companion to the cloudblogger.co.in post *Multi-NIC VMs with static IPs in VCF A
 
 | Path | What it is |
 | --- | --- |
-| `in.co.cloudblogger.multinic_v1.0.0_20261102.package` | vRO package: the workflow and both actions |
+| `in.co.cloudblogger.multinic_v1.1.0_20261102.package` | vRO package: the Network Configure workflow, both actions, and a guest script workflow with the check scripts |
 | `multi-nic-static-ip.vcfapkg` | [VCFA Ledger](https://github.com/imtrinity94/vcfa-ledger) package of the VCF Automation side. Open it in the [viewer](https://vcfa-ledger.vercel.app) |
 | `cloud-template/cloud-template.yaml` | Cloud template `LAB - Ubuntu - Multi NIC Static IP` |
 | `cloud-template/custom-form.yaml` | Custom request form (General, Storage and Network pages) |
@@ -26,6 +26,7 @@ Companion to the cloudblogger.co.in post *Multi-NIC VMs with static IPs in VCF A
 | `actions/calculateCidrNotation.js` | IP + mask to CIDR, used by the workflow |
 | `guest-scripts/template-netdiag.sh` | Read-only check of a Linux template (netplan, cloud-init, machine-id) |
 | `guest-scripts/template-netfix.sh` | Seals a Linux template so NIC1 gets its static IP on clones |
+| `guest-scripts/mnic-verify.sh` | Read-only check of a deployed VM: user, NICs, routes, DNS, disks, NTP, cloud-init |
 
 Orchestrator objects in the package:
 
@@ -34,6 +35,9 @@ Orchestrator objects in the package:
 | Workflow | `CloudBlogger - EBS - NetConf Pre - Apply Static IP` (folder `CloudBlogger/Multi NIC Static IP`) |
 | Action module | `in.co.cloudblogger.multinic` |
 | Actions | `getNetworksByEnvironment`, `calculateCidrNotation` |
+| Workflow | `📜 Run Script in Linux or Windows (Consolidated)`: runs a script from a resource element inside the VM through VMware Tools |
+| Action | `com.vmware.coe.vcenter.vm.guest/getVmGuestFamily` (used by the guest script workflow) |
+| Resource elements | `lab-mnic-verify.sh`, `lab-template-netdiag.sh`, `lab-template-netfix.sh`, `cmdANSI.exe` (Windows output helper) |
 
 ## Setup
 
@@ -51,10 +55,11 @@ Orchestrator objects in the package:
 
 5. Import `cloud-template/custom-form.yaml` on the catalog item.
 6. Run `guest-scripts/template-netdiag.sh` in your Linux template. If `/etc/netplan/` has a file that matches a MAC address, run `template-netfix.sh`, shut down and convert back to a template.
+7. After a deployment, run `📜 Run Script in Linux or Windows (Consolidated)` with the VM, its login user and password, and the resource element `lab-mnic-verify.sh` to check everything from Orchestrator without logging in.
 
 ## Tested on
 
-VCF Automation 9.1 (VM Apps organization) with its built-in VCF Operations Orchestrator 9.1.1 (build 25643527), and an Ubuntu 24.04.5 LTS template (cloud-init 26.1, open-vm-tools 13.0.10). Tested with three static NICs, a 50 GB boot disk, data disks of 12, 13 and 14 GB, NTP and a login user.
+VCF Automation 9.1 (VM Apps organization) with its built-in VCF Operations Orchestrator 9.1.1 (build 25643527), and an Ubuntu 24.04.5 LTS template (cloud-init 26.1, open-vm-tools 13.0.10). Final test from the catalog: NIC1 and NIC2 static, NIC3 DHCP, a 40 GB boot disk, data disks of 34, 25 and 50 GB, NTP and a login user.
 
 ## Notes
 
