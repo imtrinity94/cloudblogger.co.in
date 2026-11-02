@@ -1,6 +1,6 @@
 # Multi-NIC VMs with static IPs in VCF Automation
 
-![Multi-NIC VMs with static IPs in VCF Automation](cloudblogger-banner-multi-nic-static-ip.png)
+![Multi-NIC VMs with static IPs in VCF Automation](cloudblogger-banner-13648-multi-nic-static-ip.png)
 
 A VCF Automation 9 (VM Apps) cloud template, custom form and Orchestrator workflow that let one request build a VM with:
 
