@@ -11,7 +11,7 @@ Companion to the cloudblogger.co.in post *Crypto in VCF Operations Orchestrator 
 
 ## What's inside
 
-Package: `in.co.cloudblogger.crypto_v1.0.0_20261112.package` (both modules)
+Package: `in.co.cloudblogger.crypto_v1.1.0_20261114.package` (both modules and the benchmark workflow)
 
 ### ES5 module: `in.co.cloudblogger.crypto`
 
@@ -34,7 +34,36 @@ Package: `in.co.cloudblogger.crypto_v1.0.0_20261112.package` (both modules)
 | `encryptAesText` | string | AES-GCM with a random 12-byte IV; returns Base64 of IV + ciphertext + 16-byte tag |
 | `decryptAesText` | string | Decrypts and verifies a token from `encryptAesText`; throws if the key is wrong or the token was changed |
 
-The `actions/` folder has every script as a plain `.js` file (`es5/` and `node/`), so you can read them without importing anything.
+The ES5 module also has `measureCryptoTimings`, which the benchmark workflow uses to time the ES5 operations.
+
+### Workflow: `CB - Crypto - Benchmark ES5 vs Node`
+
+Runs SHA-256, HMAC-SHA256 and AES encrypt/decrypt with both modules on a generated payload, prints a comparison table to the run log and returns all timings as `Properties` (`results`) plus the table as text (`summary`). It uses a random AES key and HMAC key per run.
+
+| Input | Default | What it does |
+| --- | --- | --- |
+| `payloadSizeBytes` | 10240 | Payload size, 1 to 1048576 bytes |
+| `es5Repetitions` | 5 | Runs per ES5 operation (median reported) |
+| `includeNode` | true | Also time the Node.js actions |
+| `nodeRepetitions` | 3 | Runs per Node.js operation, after one separate first call |
+
+Sample run log (10 KB payload):
+
+```text
+Crypto benchmark, payload 10240 bytes (median times)
+Operation     ES5         Node.js
+---------     ---         -------
+SHA-256       103 ms      2.1 s
+HMAC-SHA256   105 ms      2.1 s
+AES encrypt   516 ms      2.1 s
+AES decrypt   834 ms      2.1 s
+
+Node.js first call (may include cold start): 2.1 s
+ES5 and Node.js SHA-256/HMAC outputs match: yes
+AES: ES5 uses CBC (lab/test only), Node.js uses GCM
+```
+
+The `actions/` folder has every script as a plain `.js` file (`es5/` and `node/`), and `workflows/` has the workflow schema, so you can read them without importing anything.
 
 ## Quick examples
 
@@ -56,9 +85,11 @@ var token = node.encryptAesText(aesKeyHex, "hex", "some text");
 var plain = node.decryptAesText(aesKeyHex, "hex", token);
 ```
 
+You can also drop the Node.js actions onto the workflow canvas as action elements, which is what the benchmark workflow does.
+
 ## Timings
 
-Median times when called from a scriptable task, VCF Operations Orchestrator 9.1.1 lab:
+Median times, VCF Operations Orchestrator 9.1.1 lab:
 
 | Payload | SHA-256 (ES5 / Node) | HMAC-SHA256 (ES5 / Node) | AES encrypt (ES5 CBC / Node GCM) | AES decrypt (ES5 CBC / Node GCM) |
 | --- | --- | --- | --- | --- |
@@ -78,4 +109,5 @@ VCF Operations Orchestrator 9.1.1 (build 25643527), Node.js 24 polyglot runtime.
 - `randomBytes` takes its bytes from `System.nextUUID()`, not `Math.random()`.
 - Keep keys in SecureString inputs or configuration elements, and don't log them.
 - Polyglot actions return plain values, so the Node.js module has no classes, only the four actions.
+- If you build Node.js actions through the REST API, set `runtime` (`node:24`) and `entryPoint` (`handler.handler`). Without the runtime the action is saved as a JavaScript (Rhino) action.
 - Disclaimer: provided as is, without warranty. Test in a lab before using in production.
