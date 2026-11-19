@@ -1,0 +1,185 @@
+formatVersion: 2
+# LAB - Ansible Hello World - Ubuntu
+# Ubuntu 24.04 VM with a static IP and an SSH login for Ansible, plus a Cloud.Ansible.Tower resource:
+# VCF Automation adds the VM to an AWX inventory and runs an AWX job template against it.
+outputs:
+  __deploymentOverview:
+    value: |
+      ### Ansible test VM
+
+      <table>
+        <tr><td><b>VM name</b></td><td>${resource.ansibleVm.resourceName}</td></tr>
+        <tr><td><b>IP address</b></td><td>${input.ipAddress}/${input.prefixLength}</td></tr>
+        <tr><td><b>AWX integration</b></td><td>${input.awxAccount}</td></tr>
+        <tr><td><b>AWX inventory</b></td><td>${input.awxInventory}</td></tr>
+        <tr><td><b>AWX job template</b></td><td>${input.awxJobTemplate}</td></tr>
+        <tr><td><b>OS login</b></td><td><code>ssh ${input.osUsername}@${input.ipAddress}</code></td></tr>
+      </table>
+inputs:
+  vmName:
+    type: string
+    title: VM name
+    description: vCenter VM name, guest hostname and AWX inventory host name.
+    pattern: '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'
+    default: lab-ansible01
+  imageRef:
+    type: string
+    title: VM template
+    description: vCenter VM template to clone. Needs cloud-init, open-vm-tools and Python 3.
+    default: ubuntu24_template
+  cpuCount:
+    type: integer
+    title: vCPUs
+    minimum: 1
+    maximum: 8
+    default: 1
+  memoryGb:
+    type: integer
+    title: Memory (GB)
+    minimum: 1
+    maximum: 16
+    default: 2
+  networkTag:
+    type: string
+    title: Network
+    description: Value of the net capability tag on the target network.
+    oneOf:
+      - title: VM Management (10.20.44.0/24, VLAN 404)
+        const: lab-vm-mgmt
+    default: lab-vm-mgmt
+  ipAddress:
+    type: string
+    title: IP address
+    description: Free static IPv4 address on the selected network.
+    pattern: '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$'
+  prefixLength:
+    type: integer
+    title: Prefix length
+    minimum: 8
+    maximum: 30
+    default: 24
+  gateway:
+    type: string
+    title: Default gateway
+    default: 10.20.44.1
+  dnsServers:
+    type: string
+    title: DNS servers
+    description: Comma separated.
+    default: 10.20.44.11,10.20.44.12
+  dnsDomain:
+    type: string
+    title: DNS domain
+    default: vmw.lab
+  osUsername:
+    type: string
+    title: Ansible SSH user
+    description: Sudo user created by cloud-init. Must match the machine credential on the AWX job template.
+    pattern: '^[a-z_][a-z0-9_-]{1,30}$'
+    default: ansible
+  osPassword:
+    type: string
+    title: Ansible SSH password
+    description: Must match the machine credential on the AWX job template.
+    encrypted: true
+    minLength: 8
+  awxAccount:
+    type: string
+    title: AWX integration
+    description: Name of the Ansible Automation Platform integration in VCF Automation.
+    default: LAB-AWX-Lab
+  awxInventory:
+    type: string
+    title: AWX inventory
+    description: Existing AWX inventory the VM is added to.
+    default: VCFA Deployments
+  awxJobTemplate:
+    type: string
+    title: AWX job template
+    description: Job template to run on the new VM. Its Limit must be set to Prompt on launch.
+    default: VCFA - Hello World
+resources:
+  ansibleNetwork:
+    type: Cloud.vSphere.Network
+    properties:
+      networkType: existing
+      constraints:
+        - tag: '${"net:" + input.networkTag}'
+  ansibleVm:
+    type: Cloud.vSphere.Machine
+    properties:
+      name: ${input.vmName}
+      imageRef: ${input.imageRef}
+      cpuCount: ${input.cpuCount}
+      totalMemoryMB: ${input.memoryGb * 1024}
+      networks:
+        - network: ${resource.ansibleNetwork.id}
+      cpIpAddress: ${input.ipAddress}
+      # First boot: static IP first, then the Ansible SSH user, so AWX can log in as soon as the job starts
+      cloudConfig: |
+        #cloud-config
+        preserve_hostname: false
+        hostname: ${input.vmName}
+        fqdn: ${input.vmName}.${input.dnsDomain}
+        manage_etc_hosts: true
+        ssh_pwauth: true
+        write_files:
+          - path: /etc/ssh/sshd_config.d/01-password-auth.conf
+            permissions: '0644'
+            content: |
+              PasswordAuthentication yes
+              KbdInteractiveAuthentication yes
+          - path: /usr/local/sbin/set-static-ip.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Usage: set-static-ip.sh <ip> <prefix> <gateway> <dns,dns> <domain>
+              IP="$1"; PFX="$2"; GW="$3"; DNS=$(echo "$4" | tr -d ' ' | sed 's/,/, /g'); DOM="$5"
+              NIC=$(ls /sys/class/net | grep -v '^lo$' | head -n1)
+              echo 'network: {config: disabled}' > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+              mkdir -p /etc/netplan/backup
+              for F in /etc/netplan/*.yaml; do [ -e "$F" ] && mv "$F" /etc/netplan/backup/; done
+              cat > /etc/netplan/60-static.yaml <<EOF
+              network:
+                version: 2
+                ethernets:
+                  $NIC:
+                    dhcp4: false
+                    addresses: [$IP/$PFX]
+                    routes:
+                      - to: default
+                        via: $GW
+                    nameservers:
+                      addresses: [$DNS]
+                      search: [$DOM]
+              EOF
+              chmod 600 /etc/netplan/60-static.yaml
+              netplan apply
+          - path: /usr/local/sbin/add-ansible-user.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Usage: add-ansible-user.sh <username> <password>
+              id "$1" >/dev/null 2>&1 || useradd -m -s /bin/bash "$1"
+              usermod -aG sudo "$1"
+              echo "$1:$2" | chpasswd
+              passwd -u "$1" >/dev/null 2>&1
+        runcmd:
+          - [ /usr/local/sbin/set-static-ip.sh, "${input.ipAddress}", "${input.prefixLength}", "${input.gateway}", "${input.dnsServers}", "${input.dnsDomain}" ]
+          - [ /usr/local/sbin/add-ansible-user.sh, "${input.osUsername}", "${input.osPassword}" ]
+          - [ sh, -c, "systemctl restart ssh 2>/dev/null || systemctl restart sshd" ]
+  awxJob:
+    type: Cloud.Ansible.Tower
+    properties:
+      account: ${input.awxAccount}
+      host: ${resource.ansibleVm.*}
+      hostName: ${input.vmName}
+      inventoryName: ${input.awxInventory}
+      hostVariables: |
+        ansible_host: ${input.ipAddress}
+      maxConnectionRetries: 10
+      maxJobRetries: 3
+      templates:
+        provision:
+          - name: ${input.awxJobTemplate}
+            type: job
