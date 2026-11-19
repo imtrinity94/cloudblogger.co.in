@@ -1,0 +1,410 @@
+formatVersion: 2
+# LAB - AWX - Ubuntu
+# Ubuntu 24.04 Ansible AWX server: single-node k3s + AWX Operator, AWX served over HTTPS on 443
+# (Traefik ingress, self-signed certificate for the FQDN and the IP). Built for the VCF Automation
+# Ansible Automation Platform (Tower) integration, which only talks HTTPS on 443.
+# Install progress is published to guestinfo.awx.status (vCenter, no guest login needed).
+outputs:
+  __deploymentOverview:
+    value: |
+      ### Ansible AWX server
+
+      <table>
+        <tr><td><b>VM name</b></td><td>${resource.awxServer.resourceName}</td></tr>
+        <tr><td><b>Hostname</b></td><td>${input.vmName}.${input.dnsDomain}</td></tr>
+        <tr><td><b>AWX name</b></td><td>${input.awxFqdn}</td></tr>
+        <tr><td><b>Template</b></td><td>${input.imageRef}</td></tr>
+        <tr><td><b>Size</b></td><td>${input.cpuCount} vCPU / ${input.memoryGb} GB / ${input.bootDiskGb} GB disk</td></tr>
+        <tr><td><b>Network</b></td><td>${resource.awxNetwork.resourceName}</td></tr>
+        <tr><td><b>IP address</b></td><td>${input.ipAddress}/${input.prefixLength} (gw ${input.gateway})</td></tr>
+        <tr><td><b>AWX UI</b></td><td><a href="https://${input.awxFqdn}/" target="_blank">https://${input.awxFqdn}/</a> or <a href="https://${input.ipAddress}/" target="_blank">https://${input.ipAddress}/</a> (user <code>admin</code>)</td></tr>
+        <tr><td><b>AWX API</b></td><td><code>https://${input.ipAddress}/api/v2/ping/</code></td></tr>
+        <tr><td><b>AWX Operator</b></td><td>${input.awxOperatorVersion} on k3s (namespace <code>awx</code>)</td></tr>
+        <tr><td><b>OS login</b></td><td><code>ssh ${input.osUsername}@${input.ipAddress}</code></td></tr>
+      </table>
+
+      AWX is ready about 10 minutes after the deployment completes (k3s, operator, image pulls, database migrations).
+      Progress: VM advanced setting <code>guestinfo.awx.status</code> or <code>/var/log/awx-install.log</code>.
+      In the guest: <code>kubectl -n awx get pods</code> (kubeconfig is readable by all users).
+      Register <code>${input.awxFqdn}</code> in DNS if the status says "dns not registered".
+      VCF Automation integration: Ansible Automation Platform, hostname <code>${input.awxFqdn}</code> or <code>${input.ipAddress}</code> (no https://, no port).
+inputs:
+  vmName:
+    type: string
+    title: VM name
+    description: vCenter VM name and guest hostname. Lowercase letters, digits and hyphens.
+    pattern: '^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$'
+    default: lab-awx01
+  awxFqdn:
+    type: string
+    title: AWX host name
+    description: FQDN AWX is served on (ingress host and certificate). Also registered in DNS when the zone allows dynamic updates.
+    default: awx.vmw.lab
+  imageRef:
+    type: string
+    title: VM template
+    description: vCenter VM template (or content library item) to clone. Needs cloud-init and open-vm-tools.
+    default: ubuntu24_template
+  cpuCount:
+    type: integer
+    title: vCPUs
+    description: AWX Operator needs at least 4.
+    minimum: 4
+    maximum: 16
+    default: 4
+  memoryGb:
+    type: integer
+    title: Memory (GB)
+    description: AWX Operator needs at least 8.
+    minimum: 8
+    maximum: 32
+    default: 8
+  bootDiskGb:
+    type: integer
+    title: Boot disk size (GB)
+    description: Root is grown to this size at first boot. Container images and the AWX database live here.
+    minimum: 40
+    maximum: 200
+    default: 60
+  networkTag:
+    type: string
+    title: Network
+    description: Value of the net capability tag on the target network.
+    oneOf:
+      - title: VM Management (10.20.44.0/24, VLAN 404)
+        const: lab-vm-mgmt
+    default: lab-vm-mgmt
+  ipAddress:
+    type: string
+    title: IP address
+    description: Free static IPv4 address on the selected network.
+    pattern: '^((25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])$'
+  prefixLength:
+    type: integer
+    title: Prefix length
+    description: 24 = 255.255.255.0
+    minimum: 8
+    maximum: 30
+    default: 24
+  gateway:
+    type: string
+    title: Default gateway
+    default: 10.20.44.1
+  dnsServers:
+    type: string
+    title: DNS servers
+    description: Comma separated.
+    default: 10.20.44.11,10.20.44.12
+  dnsDomain:
+    type: string
+    title: DNS domain
+    default: vmw.lab
+  ntpServers:
+    type: string
+    title: NTP servers
+    description: Comma separated. Leave blank to keep the image default.
+    default: 10.20.44.11,10.20.44.12
+  awxOperatorVersion:
+    type: string
+    title: AWX Operator version
+    description: Release tag from github.com/ansible/awx-operator/releases.
+    default: 2.19.1
+  awxAdminPassword:
+    type: string
+    title: AWX admin password
+    description: Password for the AWX user admin.
+    encrypted: true
+    minLength: 8
+  osUsername:
+    type: string
+    title: OS login user
+    description: Linux sudo user created in the guest (SSH password login enabled).
+    pattern: '^[a-z_][a-z0-9_-]{1,30}$'
+    default: awxadmin
+  osPassword:
+    type: string
+    title: OS login password
+    encrypted: true
+    minLength: 8
+resources:
+  awxNetwork:
+    type: Cloud.vSphere.Network
+    metadata:
+      layoutPosition:
+        - 1
+        - 0
+    properties:
+      networkType: existing
+      constraints:
+        - tag: '${"net:" + input.networkTag}'
+  awxServer:
+    type: Cloud.vSphere.Machine
+    metadata:
+      layoutPosition:
+        - 0
+        - 0
+    properties:
+      name: ${input.vmName}
+      imageRef: ${input.imageRef}
+      cpuCount: ${input.cpuCount}
+      totalMemoryMB: ${input.memoryGb * 1024}
+      storage:
+        bootDiskCapacityInGB: ${input.bootDiskGb}
+      networks:
+        - network: ${resource.awxNetwork.id}
+      cpIpAddress: ${input.ipAddress}
+      cpRole: awx
+      # First boot, in order: 1) OS login user  2) static IP + DNS  3) NTP + grow root disk
+      # 4) k3s  5) AWX Operator  6) AWX instance  7) wait for AWX + DNS registration attempt  8) self-test
+      # Logs: /var/log/awx-install.log. Progress: guestinfo.awx.status
+      cloudConfig: |
+        #cloud-config
+        preserve_hostname: false
+        hostname: ${input.vmName}
+        fqdn: ${input.vmName}.${input.dnsDomain}
+        manage_etc_hosts: true
+        ssh_pwauth: true
+        write_files:
+          - path: /etc/ssh/sshd_config.d/01-password-auth.conf
+            permissions: '0644'
+            content: |
+              PasswordAuthentication yes
+              KbdInteractiveAuthentication yes
+          - path: /root/awx-install.env
+            permissions: '0600'
+            content: |
+              NET_IP=${input.ipAddress}
+              NET_PREFIX=${input.prefixLength}
+              NET_GW=${input.gateway}
+              NET_DNS=${input.dnsServers}
+              NET_DOMAIN=${input.dnsDomain}
+              NTP_SERVERS=${input.ntpServers}
+              AWX_FQDN=${input.awxFqdn}
+              AWX_OPERATOR_VERSION=${input.awxOperatorVersion}
+              AWX_ADMIN_PASS=${input.awxAdminPassword}
+          - path: /usr/local/sbin/awx-status.sh
+            permissions: '0755'
+            content: |
+              #!/bin/bash
+              # Usage: awx-status.sh "<text>" - logs a step and publishes it to guestinfo.awx.status
+              echo "$(date '+%F %T') $1" >> /var/log/awx-install.log
+              vmware-rpctool "info-set guestinfo.awx.status $1" >/dev/null 2>&1 || true
+          - path: /usr/local/sbin/add-login-user.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Usage: add-login-user.sh "<username>" "<password>"
+              U="$1"; P="$2"
+              if [ -z "$U" ]; then echo "add-login-user: no username given, skipped"; exit 0; fi
+              id "$U" >/dev/null 2>&1 || useradd -m -s /bin/bash "$U"
+              usermod -aG sudo "$U"
+              if [ -n "$P" ]; then echo "$U:$P" | chpasswd; passwd -u "$U" >/dev/null 2>&1; fi
+              /usr/local/sbin/awx-status.sh "1/8 login user $U ready"
+          - path: /usr/local/sbin/set-static-ip.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Applies a static IPv4 config (address, gateway, DNS, search domain) to the first NIC through netplan.
+              ENVF=/root/awx-install.env
+              getv() { grep "^$1=" "$ENVF" | head -n1 | cut -d= -f2-; }
+              IP=$(getv NET_IP); PFX=$(getv NET_PREFIX); GW=$(getv NET_GW)
+              DNS=$(getv NET_DNS | tr -d ' ' | sed 's/,/, /g'); DOM=$(getv NET_DOMAIN)
+              NIC=$(ls /sys/class/net | grep -v '^lo$' | head -n1)
+              echo 'network: {config: disabled}' > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+              mkdir -p /etc/netplan/backup
+              for F in /etc/netplan/*.yaml; do [ -e "$F" ] && mv "$F" /etc/netplan/backup/; done
+              cat > /etc/netplan/60-static.yaml <<EOF
+              network:
+                version: 2
+                ethernets:
+                  $NIC:
+                    dhcp4: false
+                    dhcp6: false
+                    addresses: [$IP/$PFX]
+                    routes:
+                      - to: default
+                        via: $GW
+                    nameservers:
+                      addresses: [$DNS]
+                      search: [$DOM]
+              EOF
+              chmod 600 /etc/netplan/60-static.yaml
+              netplan apply
+              for i in $(seq 1 24); do
+                if timeout 5 getent hosts archive.ubuntu.com >/dev/null; then
+                  /usr/local/sbin/awx-status.sh "2/8 network ready $NIC $IP/$PFX dns $DNS"
+                  exit 0
+                fi
+                sleep 5
+              done
+              /usr/local/sbin/awx-status.sh "2/8 WARNING $NIC $IP/$PFX set but DNS $DNS not resolving archive.ubuntu.com"
+          - path: /usr/local/sbin/set-ntp-and-disk.sh
+            permissions: '0755'
+            content: |
+              #!/bin/bash
+              # Points systemd-timesyncd at the NTP servers in the env file, then grows the root filesystem
+              # to the full disk (plain partition or LVM).
+              NTP_LIST=$(grep '^NTP_SERVERS=' /root/awx-install.env | cut -d= -f2- | tr ',;' '  ' | xargs)
+              if [ -n "$NTP_LIST" ]; then
+                mkdir -p /etc/systemd/timesyncd.conf.d
+                printf "[Time]\nNTP=%s\n" "$NTP_LIST" > /etc/systemd/timesyncd.conf.d/custom-ntp.conf
+                timedatectl set-ntp true
+                systemctl restart systemd-timesyncd
+              fi
+              ROOTDEV=$(findmnt -n -o SOURCE /)
+              case "$ROOTDEV" in
+                /dev/mapper/*)
+                  PV=$(pvs --noheadings -o pv_name | head -n1 | xargs)
+                  DISK=/dev/$(lsblk -no pkname "$PV" | head -n1)
+                  PARTNUM=$(echo "$PV" | grep -o '[0-9]*$')
+                  growpart "$DISK" "$PARTNUM" || true
+                  pvresize "$PV" || true
+                  lvextend -r -l +100%FREE "$ROOTDEV" || true
+                  ;;
+              esac
+              /usr/local/sbin/awx-status.sh "3/8 ntp '$NTP_LIST', root $(df -h / | awk 'NR==2 {print $2}')"
+          - path: /usr/local/sbin/install-awx.sh
+            permissions: '0700'
+            content: |
+              #!/bin/bash
+              # Installs k3s and the AWX Operator, creates the AWX instance behind Traefik on 443, waits for it.
+              set -eo pipefail
+              exec >> /var/log/awx-install.log 2>&1
+              trap '/usr/local/sbin/awx-status.sh "FAILED at line $LINENO - see /var/log/awx-install.log"' ERR
+              ENVF=/root/awx-install.env
+              getv() { grep "^$1=" "$ENVF" | head -n1 | cut -d= -f2-; }
+              IP=$(getv NET_IP); DOM=$(getv NET_DOMAIN); FQDN=$(getv AWX_FQDN)
+              OPV=$(getv AWX_OPERATOR_VERSION); ADMIN_PASS=$(getv AWX_ADMIN_PASS)
+              case "$ADMIN_PASS" in "((secret:"*) /usr/local/sbin/awx-status.sh "FAILED admin password reached the guest still encrypted"; exit 1;; esac
+              export DEBIAN_FRONTEND=noninteractive
+              export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+              for i in $(seq 1 10); do timeout 300 apt-get update && break; echo "apt-get update retry $i"; sleep 15; done
+              apt-get install -y curl git ca-certificates openssl jq dnsutils
+              /usr/local/sbin/awx-status.sh "4/8 installing k3s"
+              for i in $(seq 1 5); do curl -sfL --retry 5 https://get.k3s.io -o /tmp/k3s-install.sh && break; sleep 15; done
+              INSTALL_K3S_CHANNEL=stable sh /tmp/k3s-install.sh --write-kubeconfig-mode 644
+              for i in $(seq 1 60); do kubectl get nodes 2>/dev/null | grep -q ' Ready' && break; sleep 5; done
+              for i in $(seq 1 120); do kubectl -n kube-system get deploy traefik >/dev/null 2>&1 && break; sleep 5; done
+              kubectl -n kube-system rollout status deploy/traefik --timeout=900s
+              /usr/local/sbin/awx-status.sh "5/8 k3s $(k3s --version | head -n1 | awk '{print $3}') ready, installing AWX Operator $OPV"
+              mkdir -p /opt/awx/operator /opt/awx/instance
+              chmod 700 /opt/awx
+              cd /opt/awx
+              openssl req -x509 -nodes -newkey rsa:2048 -days 3650 -keyout tls.key -out tls.crt \
+                -subj "/CN=$FQDN" -addext "subjectAltName=DNS:$FQDN,IP:$IP"
+              kubectl create namespace awx --dry-run=client -o yaml | kubectl apply -f -
+              kubectl -n awx create secret tls awx-tls --cert=tls.crt --key=tls.key --dry-run=client -o yaml | kubectl apply -f -
+              kubectl -n awx create secret generic awx-admin-password --from-literal=password="$ADMIN_PASS" \
+                --dry-run=client -o yaml | kubectl apply -f -
+              cat > /opt/awx/operator/kustomization.yaml <<EOF
+              apiVersion: kustomize.config.k8s.io/v1beta1
+              kind: Kustomization
+              resources:
+                - github.com/ansible/awx-operator/config/default?ref=$OPV
+              images:
+                - name: quay.io/ansible/awx-operator
+                  newTag: $OPV
+                - name: gcr.io/kubebuilder/kube-rbac-proxy
+                  newName: quay.io/brancz/kube-rbac-proxy
+              namespace: awx
+              EOF
+              for i in $(seq 1 5); do kubectl apply -k /opt/awx/operator && break; echo "operator apply retry $i"; sleep 20; done
+              kubectl -n awx rollout status deploy/awx-operator-controller-manager --timeout=900s
+              /usr/local/sbin/awx-status.sh "6/8 AWX Operator running, creating AWX instance"
+              cat > /opt/awx/instance/awx.yaml <<EOF
+              apiVersion: awx.ansible.com/v1beta1
+              kind: AWX
+              metadata:
+                name: awx
+                namespace: awx
+              spec:
+                service_type: ClusterIP
+                ingress_type: ingress
+                ingress_class_name: traefik
+                ingress_hosts:
+                  - hostname: $FQDN
+                    tls_secret: awx-tls
+                admin_user: admin
+                admin_password_secret: awx-admin-password
+                postgres_data_volume_init: true
+                postgres_storage_class: local-path
+                postgres_storage_requirements:
+                  requests:
+                    storage: 10Gi
+                extra_settings:
+                  - setting: CSRF_TRUSTED_ORIGINS
+                    value:
+                      - https://$FQDN
+                      - https://$IP
+              ---
+              # Lets AWX answer on the bare IP too, and makes the AWX certificate Traefik's default certificate
+              apiVersion: traefik.io/v1alpha1
+              kind: TLSStore
+              metadata:
+                name: default
+                namespace: awx
+              spec:
+                defaultCertificate:
+                  secretName: awx-tls
+              ---
+              apiVersion: networking.k8s.io/v1
+              kind: Ingress
+              metadata:
+                name: awx-by-ip
+                namespace: awx
+              spec:
+                ingressClassName: traefik
+                tls:
+                  - secretName: awx-tls
+                rules:
+                  - http:
+                      paths:
+                        - path: /
+                          pathType: Prefix
+                          backend:
+                            service:
+                              name: awx-service
+                              port:
+                                number: 80
+              EOF
+              for i in $(seq 1 10); do kubectl apply -f /opt/awx/instance/awx.yaml && break; echo "instance apply retry $i"; sleep 15; done
+              /usr/local/sbin/awx-status.sh "7/8 AWX instance created, waiting for pods and database migrations"
+              VER=""
+              for i in $(seq 1 180); do
+                VER=$(curl -sk --max-time 10 https://127.0.0.1/api/v2/ping/ -H "Host: $FQDN" | jq -r '.version // empty' 2>/dev/null || true)
+                [ -n "$VER" ] && break
+                if [ $((i % 6)) -eq 0 ]; then
+                  /usr/local/sbin/awx-status.sh "7/8 waiting for AWX ($((i / 6)) min) - $(kubectl -n awx get pods --no-headers 2>/dev/null | awk '{print $1":"$3}' | tr '\n' ' ')"
+                fi
+                sleep 10
+              done
+              if [ -z "$VER" ]; then
+                /usr/local/sbin/awx-status.sh "FAILED AWX API not answering after 30 min - check kubectl -n awx get pods and operator logs"
+                exit 1
+              fi
+              # Try a dynamic DNS update for the AWX name (works only if the zone allows non-secure updates)
+              DNS1=$(getv NET_DNS | cut -d, -f1 | xargs)
+              ZONE=$(echo "$FQDN" | cut -d. -f2-)
+              DNSRES="dns not registered"
+              if printf 'server %s\nzone %s\nupdate delete %s. A\nupdate add %s. 3600 A %s\nsend\n' "$DNS1" "$ZONE" "$FQDN" "$FQDN" "$IP" | timeout 20 nsupdate -v; then
+                sleep 3
+                if [ "$(dig +short @"$DNS1" "$FQDN" A | head -n1)" = "$IP" ]; then DNSRES="dns $FQDN -> $IP registered"; fi
+              fi
+              # Self-test: admin login through the IP ingress. The operator creates the admin user a few minutes
+              # after the API first answers, so retry for up to 10 minutes.
+              ME=""
+              for i in $(seq 1 60); do
+                ME=$(curl -sk --max-time 15 -u "admin:$ADMIN_PASS" https://$IP/api/v2/me/ | jq -r '.results[0].username // empty' 2>/dev/null || true)
+                [ "$ME" = "admin" ] && break
+                sleep 10
+              done
+              rm -f "$ENVF" /tmp/k3s-install.sh
+              if [ "$ME" = "admin" ]; then AUTH="admin login ok"; else AUTH="WARNING admin login check failed"; fi
+              /usr/local/sbin/awx-status.sh "DONE AWX $VER ready on https://$IP/ and https://$FQDN/ - $AUTH - $DNSRES"
+        runcmd:
+          - [ /usr/local/sbin/add-login-user.sh, "${input.osUsername}", "${input.osPassword}" ]
+          - [ sh, -c, "systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true" ]
+          - [ /usr/local/sbin/set-static-ip.sh ]
+          - [ /usr/local/sbin/set-ntp-and-disk.sh ]
+          - [ /usr/local/sbin/install-awx.sh ]
+          - [ sh, -c, "echo \"cloud-init done $(date)\" > /var/log/cloudinit-done.log" ]
