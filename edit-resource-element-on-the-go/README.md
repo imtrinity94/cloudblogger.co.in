@@ -29,6 +29,18 @@ Package: `in.co.cloudblogger.editresourceelementonthego_v1.2.0_20261120.package`
 
 The `actions/` folder has every script as a plain `.js` file, and `workflows/` has the workflow schema, so you can read them without importing anything.
 
+## Screenshots
+
+From a real run on VCF Automation 9.1.1: `lab-vm-settings.yaml` saved at 1.0.0 with `flavor: large`, then changed to `flavor: small` at 1.0.1.
+
+| | |
+| --- | --- |
+| ![Run form, Resource Properties](screenshots/01-run-form-properties.png) | **Form, page 1:** pick the resource element, MIME type, optional new version |
+| ![Run form, Edit here](screenshots/02-run-form-edit-content.png) | **Form, page 2:** edit the content |
+| ![Run log](screenshots/03-run-log.png) | **Run log:** content committed, version 1.0.0 -> 1.0.1 |
+| ![Resource element after the save](screenshots/04-resource-general.png) | **Resource element:** new content, version 1.0.1, description kept |
+| ![Version history](screenshots/05-resource-version-history.png) | **Version History:** every save is there (two entries per run: content, then version and description) |
+
 ## How saving works
 
 1. **Default vRA host found** (Orchestrator embedded in VCF Automation or Aria Automation): the action calls Orchestrator's own REST API through the vRA plug-in's Default host, which handles the login (as the user running the workflow) and the certificate. `POST /vco/api/resources/{id}` uploads the content and creates a version history commit; `PUT /vco/api/resources/{id}` then sets the version and puts the description and MIME type back.
