@@ -1,0 +1,33 @@
+<?xml version="1.0" ?>
+<schema-workflow xmlns:ns2="http://www.vmware.com/vco" root-name="item1" object-name="workflow:name=generic" id="28c49c65-a668-4eea-8306-7d7c25a5bbc7" version="1.1.1" api-version="6.0.0" allowed-operations="vfe" restartMode="1" resumeFromFailedMode="0" editor-version="1.6">
+  <display-name>Edit Resource Element On-The-Go</display-name>
+  <description>Edit a text-based resource element (yaml, json, xml, sh, ps1, ...) in the form and save it through the vRO REST API, so every save lands in the element's version history. Optionally set a new version.</description>
+  <position y="10.0" x="50.0"/>
+  <input>
+    <param name="RES_ELEM" type="ResourceElement"/>
+    <param name="CONTENT" type="Text"/>
+    <param name="MIME_TYPE" type="string"/>
+    <param name="VERSION" type="string"/>
+  </input>
+  <workflow-item name="item0" type="end" end-mode="0" comparator="0">
+    <in-binding/>
+    <position y="10.0" x="310.0"/>
+  </workflow-item>
+  <workflow-item name="item1" out-name="item0" type="task" comparator="0">
+    <display-name>Update Resource Element</display-name>
+    <script encoded="false">// Saves through the vRO REST API so the change is committed to version history.
+// The scripting API (setContentFromMimeAttachment) updates content but creates no history,
+// and saveToVersionRepository() is deprecated and no longer functional.
+System.getModule("in.co.cloudblogger.resource").commitResourceElementContent(resElem, content, MIME_TYPE, VERSION);
+</script>
+    <in-binding>
+      <bind name="resElem" type="ResourceElement" export-name="RES_ELEM"/>
+      <bind name="content" type="Text" export-name="CONTENT"/>
+      <bind name="MIME_TYPE" type="string" export-name="MIME_TYPE"/>
+      <bind name="VERSION" type="string" export-name="VERSION"/>
+    </in-binding>
+    <out-binding/>
+    <position y="20.0" x="140.0"/>
+  </workflow-item>
+  <presentation/>
+</schema-workflow>
