@@ -1,0 +1,107 @@
+formatVersion: 1
+# LAB - Windows - Custom Disks
+# Windows Server 2022 VM with extra data disks, each with its own drive letter and NTFS label.
+# Based on the cosmin.us article "How to add custom disks with drive letters and labels in
+# Aria Automation", but without Cloudbase-init (the lab Windows template does not have it):
+#   - VCFA creates one Cloud.vSphere.Disk per row on the SCSI controller + unit of that row
+#   - vSphere customization spec "windows": sysprep, hostname, static IP from the vRA IP range
+#     on net:lab-vm-mgmt, Administrator password
+#   - The rows are passed to the Compute Post Provision subscription as labDiskLayout. The vRO
+#     workflow "LAB - EBS - CompProv Post - Configure Windows Disks" checks each disk at its SCSI
+#     address and runs LAB/Scripts/lab-windows-custom-disks.ps1 through VMware Tools, which brings
+#     the disk online, makes a GPT/NTFS volume and sets the drive letter and label.
+#     Disks are matched by SCSI controller:unit (and size), not by order.
+inputs:
+  vmName:
+    type: string
+    title: VM name
+    description: Lowercase letters, digits and hyphens, up to 15 chars (NetBIOS limit)
+    pattern: '^[a-z][a-z0-9-]{0,14}$'
+    default: lab-win-disks01
+  cpuCount:
+    type: integer
+    title: vCPUs
+    minimum: 1
+    maximum: 16
+    default: 2
+  memoryMb:
+    type: integer
+    title: Memory (MB)
+    minimum: 2048
+    maximum: 65536
+    default: 4096
+  additionalDisks:
+    type: array
+    title: Additional disks
+    description: One row per disk. SCSI unit 7 is reserved and 0:0 is the OS disk. Each SCSI address and drive letter can be used once.
+    minItems: 0
+    maxItems: 8
+    default: []
+    items:
+      type: object
+      properties:
+        scsiController:
+          type: string
+          title: SCSI controller
+          enum:
+            - SCSI_Controller_0
+            - SCSI_Controller_1
+            - SCSI_Controller_2
+            - SCSI_Controller_3
+          default: SCSI_Controller_1
+        unitNumber:
+          type: integer
+          title: Unit number
+          description: 0-15, not 7 (on controller 0, not 0 either)
+          minimum: 0
+          maximum: 15
+          default: 0
+        sizeGb:
+          type: integer
+          title: Size (GB)
+          minimum: 1
+          maximum: 2000
+          default: 10
+        driveLetter:
+          type: string
+          title: Drive letter
+          description: Single letter D-Z
+          pattern: '^[D-Zd-z]$'
+        label:
+          type: string
+          title: Volume label
+          description: Up to 32 characters - letters, digits, space, dot, dash, underscore
+          pattern: '^[A-Za-z0-9 _.-]{1,32}$'
+resources:
+  data-disk:
+    type: Cloud.vSphere.Disk
+    # Needed so SCSIController / unitNumber are evaluated per disk (count.index), not once for all
+    allocatePerInstance: true
+    properties:
+      # One disk per row, on the SCSI address chosen in that row
+      count: ${length(input.additionalDisks)}
+      capacityGb: ${input.additionalDisks[count.index].sizeGb}
+      SCSIController: ${input.additionalDisks[count.index].scsiController}
+      unitNumber: ${input.additionalDisks[count.index].unitNumber}
+      provisioningType: thin
+  win-vm:
+    type: Cloud.vSphere.Machine
+    properties:
+      name: ${input.vmName}
+      imageRef: windows2022_template
+      cpuCount: ${input.cpuCount}
+      totalMemoryMB: ${input.memoryMb}
+      customizationSpec: windows
+      attachedDisks: ${map_to_object(resource.data-disk[*].id, "source")}
+      networks:
+        - network: ${resource.mgmt-net.id}
+          assignment: static
+      # Read by the Compute Post Provision EBS "LAB - CompProv Post - Configure Windows Disks"
+      labCustomDisks: windows
+      labDiskLayout: ${input.additionalDisks}
+  mgmt-net:
+    type: Cloud.vSphere.Network
+    properties:
+      networkType: existing
+      constraints:
+        - tag: net:lab-vm-mgmt
